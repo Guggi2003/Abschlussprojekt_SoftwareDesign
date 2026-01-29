@@ -1,2 +1,6 @@
 # Abschlussprojekt_SoftwareDesign
-Abschlussprojekt SoftwareDesign
+Abschlussprojekt für das Vorlesung Softwaredesing
+
+Projektmitarbeiter:
+  Kofler Michael
+  Guggenberger Philipp
