@@ -1,3 +1,6 @@
+__pycache__/mechanical_system.cpython-314.pyc
+__pycache__/structural_components.cpython-314.pyc
+
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -215,3 +218,5 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+.pyc
+__pycache__/topology_optimizer.cpython-314.pyc
