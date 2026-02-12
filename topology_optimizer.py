@@ -57,6 +57,7 @@ class TopologyOptimizer:
         importance_map = self._calculate_point_importance(u)
         points_to_remove = self._identify_points_to_remove(importance_map)
         
+        # 4. Löschen
         for pid in points_to_remove:
             self.system.remove_mass_point(pid)
             
