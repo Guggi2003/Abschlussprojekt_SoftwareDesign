@@ -4,9 +4,7 @@ from mechanical_system import MechanicalSystem
 class TopologyOptimizer:
     """
     Steuert den Optimierungsprozess.
-    Strategie: 'Bridge Breaker'.
-    Verbindet nahe beieinander liegende Löcher, indem dünne Stege bestraft werden.
-    Erzeugt massive Strukturen mit großen Löchern.
+    Strategie: 'Bridge Breaker' + Verformungsspeicher.
     """
     def __init__(self, system: MechanicalSystem, target_mass_ratio: float):
         self.system = system
@@ -15,6 +13,9 @@ class TopologyOptimizer:
         self.initial_mass = len(system.mass_points)
         self.current_iteration = 0
         self.previous_energies: dict[int, float] = {}
+        
+        # NEU: Wir speichern die Verschiebungen für den Plot
+        self.current_displacements: np.ndarray = None
 
     def solve_linear_system(self) -> np.ndarray:
         """Löst K * u = F robust."""
@@ -51,13 +52,21 @@ class TopologyOptimizer:
         target_count = int(self.initial_mass * self.target_mass_ratio)
         if len(self.system.mass_points) <= target_count:
             print("Zielmasse erreicht.")
+            # Auch wenn wir nicht löschen, wollen wir für den Plot rechnen
+            u = self.solve_linear_system()
+            self.current_displacements = u
             return
 
+        # 1. FEM & Speichern
         u = self.solve_linear_system()
+        self.current_displacements = u # <--- HIER SPEICHERN WIR ES
+        
+        # 2. Wichtigkeit
         importance_map = self._calculate_point_importance(u)
+        
+        # 3. Löschen
         points_to_remove = self._identify_points_to_remove(importance_map)
         
-        # 4. Löschen
         for pid in points_to_remove:
             self.system.remove_mass_point(pid)
             
@@ -68,20 +77,16 @@ class TopologyOptimizer:
         """
         Berechnet Wichtigkeit mit 'Bridge Breaker' Logik.
         """
-        # A) Rohe Energie
         raw_energies = {pid: 0.0 for pid in self.system.mass_points}
         for spring in self.system.springs:
             e = spring.calculate_strain_energy(u)
             if spring.point_a.id in raw_energies: raw_energies[spring.point_a.id] += 0.5 * e
             if spring.point_b.id in raw_energies: raw_energies[spring.point_b.id] += 0.5 * e
 
-        # B) Spatial Filter (Radius 3.5 - Der Kompromiss)
-        # 3.5 erlaubt Diagonalen, ist aber dick genug für solide Balken.
         filtered_energies = {}
         r_min = 3.5  
         
         active_points = list(self.system.mass_points.values())
-        # Koordinaten-Map für schnelle Nachbarsuche
         coords = {p.id: (p.x, p.z) for p in active_points}
         
         for p_i in active_points:
@@ -98,13 +103,10 @@ class TopologyOptimizer:
             val = weighted_sum / weight_total if weight_total > 0 else raw_energies[p_i.id]
             filtered_energies[p_i.id] = val
 
-        # C) BRIDGE BREAKER (Dünne Stege bestrafen)
-        # Wir suchen Punkte, die "einsam" sind oder Brücken bilden.
         final_energies = {}
-        check_radius = 1.5 # Radius für direkte Nachbarn
+        check_radius = 1.5
         
         for p_i in active_points:
-            # Zähle Nachbarn im Radius 1.5
             neighbor_count = 0
             my_x, my_z = coords[p_i.id]
             
@@ -117,20 +119,11 @@ class TopologyOptimizer:
             
             energy = filtered_energies[p_i.id]
             
-            # Logik:
-            # Volles Material: ~8 Nachbarn
-            # Kante: ~5 Nachbarn
-            # Dünner Steg/Ecke: <= 3 Nachbarn
-            
             if neighbor_count <= 3:
-                # Das ist ein dünner Steg zwischen Löchern! WEG DAMIT!
-                # Wir reduzieren die Wichtigkeit drastisch (Bestrafung).
                 energy *= 0.1 
             
             final_energies[p_i.id] = energy
 
-        # D) Dämpfung (History)
-        # Erst ganz am Ende dämpfen, damit die Bestrafung "einsickert".
         damped_energies = {}
         for pid, energy in final_energies.items():
             prev = self.previous_energies.get(pid, energy)
@@ -140,7 +133,6 @@ class TopologyOptimizer:
         return damped_energies
 
     def _identify_points_to_remove(self, importance_map: dict[int, float]) -> list[int]:
-        """Konstante Löschrate 1%."""
         critical_points = []
         for pid, p in self.system.mass_points.items():
             if p.is_fixed_x or p.is_fixed_z or pid in self.system.external_forces:
