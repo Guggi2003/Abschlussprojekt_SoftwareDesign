@@ -48,6 +48,94 @@ if deformation_scale_display != st.session_state['deformation_scale_display']:
 # Echter Skalierungswert für die Berechnung
 deformation_scale = deformation_scale_display * 0.01
 
+st.sidebar.header("Speichern & Laden")
+
+# Speichern
+save_name = st.sidebar.text_input("Name für Speicherung", value="mein_modell", key="save_name_input")
+
+if st.sidebar.button("💾 Zustand speichern"):
+    if st.session_state['system'] is not None:
+        if save_name.strip() == "":
+            st.sidebar.error("❌ Bitte einen Namen eingeben!")
+        else:
+            try:
+                import os
+                import pickle
+                
+                # Ordner erstellen falls nicht vorhanden
+                os.makedirs("saved_models", exist_ok=True)
+                
+                # Dateinamen erstellen
+                filename = f"saved_models/{save_name}.pkl"
+                metadata_file = f"saved_models/{save_name}_meta.pkl"
+                
+                # System speichern
+                st.session_state['system'].save_to_file(filename)
+                
+                # Metadaten speichern
+                metadata = {
+                    'iteration': st.session_state['iteration'],
+                    'width': width,
+                    'height': height,
+                    'target_ratio': target_ratio
+                }
+                with open(metadata_file, 'wb') as f:
+                    pickle.dump(metadata, f)
+                
+                st.sidebar.success(f"✅ '{save_name}' gespeichert!")
+            except Exception as e:
+                st.sidebar.error(f"❌ Fehler beim Speichern: {e}")
+    else:
+        st.sidebar.warning("Kein Modell zum Speichern vorhanden.")
+
+# Laden
+import os
+import glob
+
+# Liste aller gespeicherten Modelle
+saved_files = []
+if os.path.exists("saved_models"):
+    saved_files = [os.path.splitext(os.path.basename(f))[0] 
+                   for f in glob.glob("saved_models/*.pkl") 
+                   if not f.endswith("_meta.pkl")]
+
+if saved_files:
+    selected_file = st.sidebar.selectbox("Gespeicherte Modelle", saved_files, key="load_select")
+    
+    if st.sidebar.button("📂 Zustand laden"):
+        try:
+            import pickle
+            from mechanical_system import MechanicalSystem
+            
+            filename = f"saved_models/{selected_file}.pkl"
+            metadata_file = f"saved_models/{selected_file}_meta.pkl"
+            
+            # System laden
+            sys = MechanicalSystem.load_from_file(filename)
+            st.session_state['system'] = sys
+            
+            # Metadaten laden
+            try:
+                with open(metadata_file, 'rb') as f:
+                    metadata = pickle.load(f)
+                    st.session_state['iteration'] = metadata.get('iteration', 0)
+            except FileNotFoundError:
+                st.session_state['iteration'] = 0
+            
+            # Optimizer initialisieren und Verschiebungen berechnen (für Verformungsanzeige)
+            optimizer = TopologyOptimizer(sys, target_ratio)
+            optimizer.initial_mass = width * height
+            u = optimizer.solve_linear_system()
+            optimizer.current_displacements = u
+            st.session_state['optimizer'] = optimizer
+            
+            st.sidebar.success(f"✅ '{selected_file}' geladen!")
+            st.rerun()
+        except Exception as e:
+            st.sidebar.error(f"❌ Fehler beim Laden: {e}")
+else:
+    st.sidebar.info("Keine gespeicherten Modelle vorhanden.")
+
 st.sidebar.header("Steuerung")
 
 if st.sidebar.button("Modell initialisieren"):
@@ -226,12 +314,27 @@ def plot_system(system, optimizer=None, title="Struktur", show_deformation=True,
 
 # --- Hauptbereich (Visualisierung) ---
 if st.session_state['system'] is not None:
-    st.pyplot(plot_system(
+    # Plot erstellen und anzeigen
+    fig = plot_system(
         st.session_state['system'], 
         st.session_state['optimizer'],
         f"Iteration {st.session_state['iteration']}",
         show_deformation,
         deformation_scale
-    ))
+    )
+    st.pyplot(fig)
+    
+    # Download-Button für das Bild
+    import io
+    buf = io.BytesIO()
+    fig.savefig(buf, format='png', dpi=300, bbox_inches='tight')
+    buf.seek(0)
+    
+    st.download_button(
+        label="📥 Bild herunterladen (PNG)",
+        data=buf,
+        file_name=f"optimierte_struktur_schritte_{st.session_state['iteration']}.png",
+        mime="image/png"
+    )
 else:
     st.info("Noch kein Modell vorhanden. Klicke links auf 'Modell initialisieren'.")
