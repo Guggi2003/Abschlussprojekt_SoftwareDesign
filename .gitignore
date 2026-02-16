@@ -220,3 +220,8 @@ __marimo__/
 .streamlit/secrets.toml
 .pyc
 __pycache__/topology_optimizer.cpython-314.pyc
+
+# Pickle files
+.pickle
+.pkl
+saved_models/
