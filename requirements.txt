@@ -2,3 +2,5 @@ numpy
 streamlit
 matplotlib
 scipy
+plotly
+kaleido
