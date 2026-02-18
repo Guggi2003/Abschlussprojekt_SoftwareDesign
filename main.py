@@ -9,17 +9,6 @@ import io
 from mechanical_system import MechanicalSystem
 from topology_optimizer import TopologyOptimizer
 
-# --- Hilfsfunktion: Nachgiebigkeit berechnen ---
-def calculate_Nachgiebigkeit(system, u):
-    """Berechnet die Formänderungsenergie (Nachgiebigkeit) C = 0.5 * u^T * F"""
-    c = 0.0
-    if u is not None and len(u) > 0:
-        for pid, f in system.external_forces.items():
-            idx = 2 * pid
-            if idx + 1 < len(u):
-                c += 0.5 * (f[0] * u[idx] + f[1] * u[idx+1])
-    return c
-
 # --- Seitenkonfiguration ---
 st.set_page_config(page_title="Topologieoptimierung", layout="wide")
 st.title("Topologieoptimierung")
@@ -33,22 +22,19 @@ if 'optimizer' not in st.session_state:
     st.session_state['optimizer'] = None
 if 'history_mass' not in st.session_state:
     st.session_state['history_mass'] = []
-if 'history_Nachgiebigkeit' not in st.session_state:
-    st.session_state['history_Nachgiebigkeit'] = []
 if 'last_displacements' not in st.session_state:
     st.session_state['last_displacements'] = None
-if 'initial_max_disp' not in st.session_state:
-    st.session_state['initial_max_disp'] = 1.0
 
 # --- SIDEBAR (Globale Parameter & Projektverwaltung) ---
 st.sidebar.header("Globale Parameter")
 width = st.sidebar.number_input("Breite (Knoten)", min_value=10, value=60)
 height = st.sidebar.number_input("Höhe (Knoten)", min_value=5, value=20)
-target_ratio = st.sidebar.slider("Ziel-Masse (%)", min_value=0.1, max_value=1.0, value=0.5, step=0.05)
+target_ratio = st.sidebar.slider("Ziel-Masse (%)", min_value=0.1, max_value=1.0, value=0.35, step=0.05)
 
 def reset_model():
     sys = MechanicalSystem(width, height)
     sys.create_initial_mesh()
+    # Standard MBB-Balken Setup
     pid_left = (sys.height - 1) * sys.width
     sys.mass_points[pid_left].is_fixed_x = True
     sys.mass_points[pid_left].is_fixed_z = True
@@ -61,9 +47,7 @@ def reset_model():
     st.session_state['system'] = sys
     st.session_state['iteration'] = 0
     st.session_state['history_mass'] = [len(sys.mass_points)]
-    st.session_state['history_Nachgiebigkeit'] = []
     st.session_state['last_displacements'] = None
-    st.session_state['initial_max_disp'] = 1.0 
     st.session_state['optimizer'] = None
 
 if st.sidebar.button("Modell zurücksetzen"):
@@ -83,9 +67,7 @@ if col_save.button("Speichern"):
                 'system': st.session_state['system'],
                 'iteration': st.session_state['iteration'],
                 'history_mass': st.session_state['history_mass'],
-                'history_Nachgiebigkeit': st.session_state['history_Nachgiebigkeit'],
-                'last_displacements': st.session_state['last_displacements'],
-                'initial_max_disp': st.session_state['initial_max_disp']
+                'last_displacements': st.session_state['last_displacements']
             }
             with open(f"saved_models/{save_name}.pkl", "wb") as f:
                 pickle.dump(save_data, f)
@@ -105,14 +87,11 @@ if col_load.button("Laden"):
             if isinstance(data, MechanicalSystem): 
                 st.session_state['system'] = data
                 st.session_state['last_displacements'] = None
-                st.session_state['initial_max_disp'] = 1.0
             else:
                 st.session_state['system'] = data['system']
                 st.session_state['iteration'] = data['iteration']
                 st.session_state['history_mass'] = data.get('history_mass', [])
-                st.session_state['history_Nachgiebigkeit'] = data.get('history_Nachgiebigkeit', [])
                 st.session_state['last_displacements'] = data.get('last_displacements', None)
-                st.session_state['initial_max_disp'] = data.get('initial_max_disp', 1.0)
             st.session_state['optimizer'] = None
             st.rerun()
         except Exception as e:
@@ -152,8 +131,6 @@ def run_opt(steps=1, auto_target=False):
         mass_after = len(st.session_state['system'].mass_points)
         
         st.session_state['history_mass'].append(mass_after)
-        comp = calculate_Nachgiebigkeit(st.session_state['system'], opt.current_displacements)
-        st.session_state['history_Nachgiebigkeit'].append(comp)
         
         iters_done += 1
         
@@ -171,25 +148,17 @@ def run_opt(steps=1, auto_target=False):
     st.session_state['optimizer'] = opt
     st.session_state['iteration'] += iters_done
 
-# --- VISUALISIERUNGS-FUNKTION ---
+# --- VISUALISIERUNG ---
+# Neu: Parameter 'is_interactive' steuert die Klick-Events im Plot
 def plot_interactive_system(system, displacements, def_scale, mode, is_interactive):
-    if displacements is None and system is not None:
+    if displacements is None and system is not None and mode == "Spannungs-Heatmap":
         temp_opt = TopologyOptimizer(system, target_ratio)
         displacements = temp_opt.solve_linear_system()
         st.session_state['last_displacements'] = displacements
-        
-        if not st.session_state['history_Nachgiebigkeit']:
-            comp = calculate_Nachgiebigkeit(system, displacements)
-            st.session_state['history_Nachgiebigkeit'].append(comp)
-            max_d = np.max(np.abs(displacements))
-            st.session_state['initial_max_disp'] = max_d if max_d > 0 else 1.0
 
     node_x, node_z = [], []
     ids, colors, sizes, texts = [], [], [], []
     current_coords = {} 
-    
-    init_disp = st.session_state.get('initial_max_disp', 1.0)
-    if init_disp == 0: init_disp = 1.0
 
     for pid, p in system.mass_points.items():
         x, z = p.x, p.z
@@ -212,9 +181,8 @@ def plot_interactive_system(system, displacements, def_scale, mode, is_interacti
         
         if mode == "Spannungs-Heatmap":
             mag = np.sqrt(dx**2 + dz**2)
-            rel_mag = mag / init_disp 
-            colors.append(rel_mag)
-            texts.append(f"ID: {pid}<br>Verformung: {rel_mag:.2f}x Start-Maximum")
+            colors.append(mag)
+            texts.append(f"ID: {pid}<br>Verformung: {mag:.5f}")
             sizes.append(9) 
         else:
             if p.is_fixed_x and p.is_fixed_z:
@@ -250,7 +218,7 @@ def plot_interactive_system(system, displacements, def_scale, mode, is_interacti
             color=colors, 
             colorscale='Turbo', 
             size=sizes,
-            colorbar=dict(title="Faktor (x-fach)"), 
+            colorbar=dict(title="Verformung"),
             cmin=0,
             cmax=cmax_val,
             showscale=True
@@ -268,17 +236,17 @@ def plot_interactive_system(system, displacements, def_scale, mode, is_interacti
         name='Knoten'
     ))
 
-    # --- PFEIL RICHTUNG GEFIXT ---
     for pid, f in system.external_forces.items():
         if pid in current_coords:
             px, pz = current_coords[pid]
             fig.add_annotation(
-                x=px, y=pz, # Spitze am Knoten
-                ax=px - f[0]*0.2, ay=pz - f[1]*0.2, # Startpunkt entgegen der Kraft -> Pfeil zeigt MIT der Kraft
+                x=px, y=pz, 
+                ax=px - f[0]*0.2, ay=pz - f[1]*0.2, 
                 xref="x", yref="y", axref="x", ayref="y",
                 showarrow=True, arrowhead=2, arrowsize=1.5, arrowwidth=3, arrowcolor="orange"
             )
 
+    # Plotly Interaktivitaet setzen
     click_mode = 'event+select' if is_interactive else 'none'
     
     fig.update_layout(
@@ -295,8 +263,7 @@ def plot_interactive_system(system, displacements, def_scale, mode, is_interacti
     return fig
 
 
-# --- HAUPTBEREICH (DASHBOARD LAYOUT) ---
-
+# --- DASHBOARD LAYOUT ---
 col_plot, col_menu = st.columns([3, 1])
 
 view_mode = "Standard"
@@ -307,8 +274,9 @@ is_interactive = (st.session_state['iteration'] == 0)
 with col_menu:
     st.write("### Steuerung")
     
+    # Pre-Processing Phase (Setup)
     if st.session_state['iteration'] == 0:
-        st.caption("PRE-PROCESSING")
+        st.caption("SETUP (PRE-PROCESSING)")
         active_tool = st.radio(
             "Werkzeug wählen & im Plot anwenden:",
             [
@@ -333,6 +301,7 @@ with col_menu:
             run_opt(1)
             st.rerun()
             
+    # Post-Processing Phase (Auswertung)
     else:
         st.caption("SOLVER")
         c1, c2 = st.columns(2)
@@ -348,7 +317,7 @@ with col_menu:
             st.rerun()
             
         st.divider()
-        st.caption("POST-PROCESSING")
+        st.caption("ANSICHT (POST-PROCESSING)")
         view_mode = st.radio("Darstellung:", ["Standard", "Spannungs-Heatmap"], key="ui_view_mode")
         
         show_deformation = st.checkbox("Verformung anzeigen", value=False, key="ui_show_def")
@@ -364,6 +333,7 @@ with col_plot:
         is_interactive
     )
     
+    # Event-Listener für Klicks im Plot
     event = st.plotly_chart(fig, width="stretch", on_select="rerun")
     
     if is_interactive and event and "selection" in event:
@@ -375,29 +345,32 @@ with col_plot:
                 sys = st.session_state['system']
                 tool = active_tool.lower()
                 
-                def reset_displacements_for_setup():
-                    st.session_state['last_displacements'] = None
-                    st.session_state['history_Nachgiebigkeit'] = []
+                # Vorherige Berechnungen zuruecksetzen, da sich das Setup aendert
+                st.session_state['last_displacements'] = None
                 
                 if "festlager" in tool:
+                    # Maximal ein Festlager erlaubt
                     for pid, p in sys.mass_points.items():
                         if p.is_fixed_x and p.is_fixed_z:
                             p.is_fixed_x = False
                             p.is_fixed_z = False
                     sys.mass_points[clicked_id].is_fixed_x = True
                     sys.mass_points[clicked_id].is_fixed_z = True
-                    reset_displacements_for_setup()
                     st.rerun()
-                    
+
                 elif "loslager" in tool:
+                    # Maximal ein Loslager erlaubt
+                    for pid, p in sys.mass_points.items():
+                        if p.is_fixed_z and not p.is_fixed_x:
+                            p.is_fixed_z = False
+
                     sys.mass_points[clicked_id].is_fixed_x = False
                     sys.mass_points[clicked_id].is_fixed_z = True
-                    reset_displacements_for_setup()
                     st.rerun()
+
                     
                 elif "kraft" in tool:
                     sys.external_forces[clicked_id] = np.array([force_x, force_z])
-                    reset_displacements_for_setup()
                     st.rerun()
                     
                 elif "löschen" in tool:
@@ -405,7 +378,6 @@ with col_plot:
                     sys.mass_points[clicked_id].is_fixed_z = False
                     if clicked_id in sys.external_forces:
                         del sys.external_forces[clicked_id]
-                    reset_displacements_for_setup()
                     st.rerun()
 
 st.divider()
@@ -414,61 +386,15 @@ st.subheader("Analyse & Konvergenz")
 current_mass = len(st.session_state['system'].mass_points)
 start_mass = st.session_state['history_mass'][0] if st.session_state['history_mass'] else (width*height)
 target_mass = int(start_mass * target_ratio)
-progress_pct = 100 - ((current_mass - target_mass) / (start_mass - target_mass) * 100) if start_mass != target_mass else 100
 
-col_met1, col_met2, col_met3, col_met4 = st.columns(4)
+col_met1, col_met2, col_met3 = st.columns(3)
 col_met1.metric("Iteration", st.session_state['iteration'])
 col_met2.metric("Aktuelle Masse (Knoten)", current_mass)
 col_met3.metric("Ziel Masse (Knoten)", target_mass)
-col_met4.metric("Fortschritt", f"{max(0, min(100, progress_pct)):.1f} %")
 
 if st.session_state['history_mass']:
-    col_chart1, col_chart2 = st.columns(2)
-    with col_chart1:
-        st.markdown("**Masse-Verlauf (Knotenanzahl)**")
-        st.line_chart(st.session_state['history_mass'], height=250)
-    with col_chart2:
-        st.markdown("**Nachgiebigkeit-Verlauf**")
-        if st.session_state['history_Nachgiebigkeit']:
-            st.line_chart(st.session_state['history_Nachgiebigkeit'], height=250)
-
-# --- FINALER REPORT ---
-if current_mass <= target_mass and st.session_state['iteration'] > 0:
-    st.success("✅ **Optimierungsziel erreicht!**")
-    st.markdown("### Finaler Report")
-    
-    start_comp = st.session_state['history_Nachgiebigkeit'][0] if st.session_state['history_Nachgiebigkeit'] else 1.0
-    end_comp = st.session_state['history_Nachgiebigkeit'][-1] if st.session_state['history_Nachgiebigkeit'] else 1.0
-    
-    comp_factor = end_comp / start_comp if start_comp > 0 else 1.0
-    # NEU: Steifigkeit als Kehrwert der Nachgiebigkeit in Prozent
-    stiffness_pct = (1.0 / comp_factor) * 100 if comp_factor > 0 else 0.0
-        
-    col_rep1, col_rep2, col_rep3 = st.columns(3)
-    
-    col_rep1.metric("Materialeinsparung", 
-                    f"{100 - (current_mass/start_mass)*100:.1f} %", 
-                    f"{(start_mass - current_mass)} Knoten entfernt")
-    
-    col_rep2.metric("Nachgiebigkeit (Weichheit)", 
-                    f"{comp_factor:.2f}x", 
-                    f"+{(comp_factor-1)*100:.1f} %", 
-                    delta_color="inverse")
-    
-    # --- DRITTE BOX ERSETZT DURCH REST-STEIFIGKEIT ---
-    col_rep3.metric("Verbleibende Steifigkeit", 
-                    f"{stiffness_pct:.1f} %",
-                    f"-{100 - stiffness_pct:.1f} % vom Original",
-                    delta_color="normal")
-
-    with st.expander("Erklärung der Kennzahlen anzeigen"):
-        st.markdown("""
-        Um die Berechnungen greifbar zu machen, werden die Ergebnisse **relativ zur massiven Startstruktur (Iteration 0)** angegeben.
-        
-        * **Materialeinsparung:**           So viel Prozent des ursprünglichen Volumens wurden entfernt, um die Zielmasse zu erreichen.
-        * **Nachgiebigkeit:**               Zeigt an, um das Wievielfache das optimierte Bauteil "weicher" geworden ist.
-        * **Verbleibende Steifigkeit:**     Dies ist der Kehrwert der Nachgiebigkeit.
-        """)
+    st.markdown("**Masse-Verlauf**")
+    st.line_chart(st.session_state['history_mass'], height=250)
 
 with col_menu:
     if st.session_state['iteration'] > 0:
@@ -484,4 +410,4 @@ with col_menu:
                 width="stretch"
             )
         except Exception:
-            st.warning("⚠️ 'kaleido' fehlt für Bild-Export.")
+            pass
