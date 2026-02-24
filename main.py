@@ -67,6 +67,7 @@ if col_save.button("Speichern"):
                 'system': st.session_state['system'],
                 'iteration': st.session_state['iteration'],
                 'history_mass': st.session_state['history_mass'],
+                'history_Nachgiebigkeit': st.session_state['history_Nachgiebigkeit'],
                 'last_displacements': st.session_state['last_displacements']
             }
             with open(f"saved_models/{save_name}.pkl", "wb") as f:
@@ -155,11 +156,15 @@ def plot_interactive_system(system, displacements, def_scale, mode, is_interacti
         temp_opt = TopologyOptimizer(system, target_ratio)
         displacements = temp_opt.solve_linear_system()
         st.session_state['last_displacements'] = displacements
+        
+        if not st.session_state['history_Nachgiebigkeit']:
+            comp = calculate_Nachgiebigkeit(system, displacements)
+            st.session_state['history_Nachgiebigkeit'].append(comp)
 
     node_x, node_z = [], []
     ids, colors, sizes, texts = [], [], [], []
     current_coords = {} 
-
+    
     for pid, p in system.mass_points.items():
         x, z = p.x, p.z
         dx, dz = 0.0, 0.0
@@ -182,7 +187,7 @@ def plot_interactive_system(system, displacements, def_scale, mode, is_interacti
         if mode == "Spannungs-Heatmap":
             mag = np.sqrt(dx**2 + dz**2)
             colors.append(mag)
-            texts.append(f"ID: {pid}<br>Verformung: {mag:.5f}")
+            texts.append(f"ID: {pid}<br>Verformung (absolut): {mag:.5f}")
             sizes.append(9) 
         else:
             if p.is_fixed_x and p.is_fixed_z:
@@ -218,7 +223,7 @@ def plot_interactive_system(system, displacements, def_scale, mode, is_interacti
             color=colors, 
             colorscale='Turbo', 
             size=sizes,
-            colorbar=dict(title="Verformung"),
+            colorbar=dict(title="Verformung"), 
             cmin=0,
             cmax=cmax_val,
             showscale=True
@@ -240,8 +245,8 @@ def plot_interactive_system(system, displacements, def_scale, mode, is_interacti
         if pid in current_coords:
             px, pz = current_coords[pid]
             fig.add_annotation(
-                x=px, y=pz, 
-                ax=px - f[0]*0.2, ay=pz - f[1]*0.2, 
+                x=px, y=pz,
+                ax=px - f[0]*0.2, ay=pz - f[1]*0.2,
                 xref="x", yref="y", axref="x", ayref="y",
                 showarrow=True, arrowhead=2, arrowsize=1.5, arrowwidth=3, arrowcolor="orange"
             )
@@ -393,8 +398,14 @@ col_met2.metric("Aktuelle Masse (Knoten)", current_mass)
 col_met3.metric("Ziel Masse (Knoten)", target_mass)
 
 if st.session_state['history_mass']:
-    st.markdown("**Masse-Verlauf**")
-    st.line_chart(st.session_state['history_mass'], height=250)
+    col_chart1, col_chart2 = st.columns(2)
+    with col_chart1:
+        st.markdown("**Masse-Verlauf (Knotenanzahl)**")
+        st.line_chart(st.session_state['history_mass'], height=250)
+    with col_chart2:
+        st.markdown("**Nachgiebigkeit-Verlauf**")
+        if st.session_state['history_Nachgiebigkeit']:
+            st.line_chart(st.session_state['history_Nachgiebigkeit'], height=250)
 
 with col_menu:
     if st.session_state['iteration'] > 0:
@@ -410,4 +421,4 @@ with col_menu:
                 width="stretch"
             )
         except Exception:
-            pass
+            st.warning("⚠️ 'kaleido' fehlt für Bild-Export.")
