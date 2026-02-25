@@ -187,6 +187,48 @@ Im Vergleich zur Basisversion wurden folgende Funktionen ergänzt:
 
 ---
 
+## 6. Erweiterbarkeit auf 3D
+
+Eine Erweiterung des Modells auf drei Dimensionen ist aus mathematischer Sicht grundsätzlich möglich.  
+Die Formulierung der Steifigkeitsmatrix, der Freiheitsgrade sowie der Optimierungskriterien lässt sich direkt auf 3D übertragen.
+
+Allerdings entsteht dabei ein massives Skalierungsproblem:
+
+Beispielhafte Diskretisierung:
+
+\[
+60 \times 20 \times 20 = 24\,000 \text{ Knoten}
+\]
+
+In 3D besitzt jeder Knoten drei Freiheitsgrade:
+
+- \( u_x \)
+- \( u_y \)
+- \( u_z \)
+
+Damit ergibt sich:
+
+\[
+24\,000 \times 3 = 72\,000 \text{ Freiheitsgrade}
+\]
+
+Die globale Steifigkeitsmatrix \( K \) hat somit die Dimension:
+
+\[
+72\,000 \times 72\,000
+\]
+
+Das entspricht:
+
+\[
+5{,}184{,}000{,}000 \approx 5{,}1 \text{ Milliarden Matrixeinträgen}
+\]
+
+Die Verarbeitung einer Matrix dieser Größe ist mit einer dichten Darstellung rechnerisch und speichertechnisch äußerst aufwendig.  
+Die Berechnungszeit würde selbst bei moderner Hardware stark ansteigen.
+
+Aus diesem Grund wurde im Rahmen dieses Projekts bewusst eine 2D-Implementierung gewählt.
+
 ### Installation
 
 ```bash
