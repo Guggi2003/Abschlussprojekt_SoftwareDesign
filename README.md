@@ -42,9 +42,7 @@ Lineare Federelemente verbinden die Knoten:
 
 Diagonalstäbe werden hinsichtlich ihrer Steifigkeit angepasst:
 
-\[
-k_{diag} = k \cdot \frac{1}{2}
-\]
+k_diag = k * 1/2
 
 Diese Korrektur berücksichtigt die größere geometrische Länge der Diagonalelemente.
 
@@ -54,9 +52,7 @@ Diese Korrektur berücksichtigt die größere geometrische Länge der Diagonalel
 
 Das Systemgleichgewicht wird mittels der Direkten Steifigkeitsmethode bestimmt:
 
-\[
-K \cdot u = F
-\]
+K · u = F
 
 Dabei ist:
 
@@ -74,15 +70,11 @@ Ziel ist die Maximierung der Steifigkeit bzw. Minimierung der Compliance \( C \)
 
 Die Compliance wird berechnet als:
 
-\[
-C = \frac{1}{2} u^T F
-\]
+C = 1/2 · u^T · F
 
 Als Sensitivitätsmaß dient die elementweise Dehnungsenergie:
 
-\[
-E_{Element} = \frac{1}{2} u_e^T K_e u_e
-\]
+E_Element = 1/2 · u_e^T · K_e · u_e
 
 Elemente mit geringer Dehnungsenergie tragen kaum zur Lastabtragung bei und werden iterativ entfernt.
 
@@ -196,9 +188,7 @@ Allerdings entsteht dabei ein massives Skalierungsproblem:
 
 Beispielhafte Diskretisierung:
 
-\[
-60 \times 20 \times 20 = 24\,000 \text{ Knoten}
-\]
+60 × 20 × 20 = 24,000 Knoten
 
 In 3D besitzt jeder Knoten drei Freiheitsgrade:
 
@@ -208,21 +198,15 @@ In 3D besitzt jeder Knoten drei Freiheitsgrade:
 
 Damit ergibt sich:
 
-\[
-24\,000 \times 3 = 72\,000 \text{ Freiheitsgrade}
-\]
+24,000 × 3 = 72,000 Freiheitsgrade
 
 Die globale Steifigkeitsmatrix \( K \) hat somit die Dimension:
 
-\[
-72\,000 \times 72\,000
-\]
+72,000 × 72,000
 
 Das entspricht:
 
-\[
-5{,}184{,}000{,}000 \approx 5{,}1 \text{ Milliarden Matrixeinträgen}
-\]
+5,184,000,000 ≈ 5.1 Milliarden Matrixeinträge
 
 Die Verarbeitung einer Matrix dieser Größe ist mit einer dichten Darstellung rechnerisch und speichertechnisch äußerst aufwendig.  
 Die Berechnungszeit würde selbst bei moderner Hardware stark ansteigen.
