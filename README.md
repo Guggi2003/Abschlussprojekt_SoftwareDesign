@@ -213,6 +213,13 @@ Die Berechnungszeit würde selbst bei moderner Hardware stark ansteigen.
 
 Aus diesem Grund wurde im Rahmen dieses Projekts bewusst eine 2D-Implementierung gewählt.
 
+## 7. KI-Unterstützung
+
+Die Konzeption, Strukturierung und Implementierung des Projekts erfolgten eigenständig.
+KI-Tools wurden unterstützend bei der Analyse komplexerer Probleme, beim Debugging sowie bei kleineren Optimierungen und Detailanpassungen eingesetzt.
+
+Die fachliche Logik, das mathematische Modell und die Gesamtarchitektur stammen aus eigener Entwicklung.
+
 ### Installation
 
 ```bash
