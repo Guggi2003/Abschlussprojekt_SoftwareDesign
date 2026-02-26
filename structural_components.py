@@ -56,7 +56,7 @@ class LinearSpring(StructuralElement):
         dz = self.point_b.z - self.point_a.z
         length = np.sqrt(dx**2 + dz**2)
         
-        # Schutz vor Division durch Null (sollte physikalisch nicht vorkommen)
+        # Schutz vor Division durch Null
         if length == 0:
             return np.zeros((4, 4))
 
@@ -84,7 +84,6 @@ class LinearSpring(StructuralElement):
         k_element = self.calculate_local_stiffness_matrix()
         
         # Energieformel: E = 0.5 * u^T * K * u
-        # Der @-Operator führt die Matrixmultiplikation aus
         energy = 0.5 * (u_element.T @ k_element @ u_element)
         
         return float(energy)

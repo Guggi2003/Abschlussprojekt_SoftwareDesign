@@ -13,6 +13,18 @@ from topology_optimizer import TopologyOptimizer
 st.set_page_config(page_title="Topologieoptimierung", layout="wide")
 st.title("Topologieoptimierung")
 
+
+def calculate_Nachgiebigkeit(system: MechanicalSystem, displacements: np.ndarray) -> float:
+    """Berechnet die Nachgiebigkeit C = F^T * u (Arbeit der äußeren Kräfte)."""
+    if displacements is None or len(displacements) == 0:
+        return 0.0
+    compliance = 0.0
+    for pid, force in system.external_forces.items():
+        idx = 2 * pid
+        if idx + 1 < len(displacements):
+            compliance += force[0] * displacements[idx] + force[1] * displacements[idx+1]
+    return compliance
+
 # --- Session State Initialisierung ---
 if 'system' not in st.session_state:
     st.session_state['system'] = None
@@ -22,6 +34,8 @@ if 'optimizer' not in st.session_state:
     st.session_state['optimizer'] = None
 if 'history_mass' not in st.session_state:
     st.session_state['history_mass'] = []
+if 'history_Nachgiebigkeit' not in st.session_state:
+    st.session_state['history_Nachgiebigkeit'] = []
 if 'last_displacements' not in st.session_state:
     st.session_state['last_displacements'] = None
 
@@ -29,7 +43,7 @@ if 'last_displacements' not in st.session_state:
 st.sidebar.header("Globale Parameter")
 width = st.sidebar.number_input("Breite (Knoten)", min_value=10, value=60)
 height = st.sidebar.number_input("Höhe (Knoten)", min_value=5, value=20)
-target_ratio = st.sidebar.slider("Ziel-Masse (%)", min_value=0.1, max_value=1.0, value=0.35, step=0.05)
+target_ratio = st.sidebar.slider("Ziel-Masse (%)", min_value=0.1, max_value=1.0, value=0.5, step=0.05)
 
 def reset_model():
     sys = MechanicalSystem(width, height)
@@ -47,6 +61,7 @@ def reset_model():
     st.session_state['system'] = sys
     st.session_state['iteration'] = 0
     st.session_state['history_mass'] = [len(sys.mass_points)]
+    st.session_state['history_Nachgiebigkeit'] = []
     st.session_state['last_displacements'] = None
     st.session_state['optimizer'] = None
 
@@ -92,6 +107,7 @@ if col_load.button("Laden"):
                 st.session_state['system'] = data['system']
                 st.session_state['iteration'] = data['iteration']
                 st.session_state['history_mass'] = data.get('history_mass', [])
+                st.session_state['history_Nachgiebigkeit'] = data.get('history_Nachgiebigkeit', [])
                 st.session_state['last_displacements'] = data.get('last_displacements', None)
             st.session_state['optimizer'] = None
             st.rerun()
@@ -123,7 +139,6 @@ def run_opt(steps=1, auto_target=False):
     
     for i in range(max_iters):
         curr_mass = len(st.session_state['system'].mass_points)
-        
         if auto_target and curr_mass <= target_m:
             break
             
@@ -131,7 +146,12 @@ def run_opt(steps=1, auto_target=False):
         opt.run_optimization_step()
         mass_after = len(st.session_state['system'].mass_points)
         
+        # Historie aktualisieren
         st.session_state['history_mass'].append(mass_after)
+        
+        if opt.current_displacements is not None:
+            comp = calculate_Nachgiebigkeit(st.session_state['system'], opt.current_displacements)
+            st.session_state['history_Nachgiebigkeit'].append(comp)
         
         iters_done += 1
         
@@ -150,16 +170,11 @@ def run_opt(steps=1, auto_target=False):
     st.session_state['iteration'] += iters_done
 
 # --- VISUALISIERUNG ---
-# Neu: Parameter 'is_interactive' steuert die Klick-Events im Plot
 def plot_interactive_system(system, displacements, def_scale, mode, is_interactive):
     if displacements is None and system is not None and mode == "Spannungs-Heatmap":
         temp_opt = TopologyOptimizer(system, target_ratio)
         displacements = temp_opt.solve_linear_system()
         st.session_state['last_displacements'] = displacements
-        
-        if not st.session_state['history_Nachgiebigkeit']:
-            comp = calculate_Nachgiebigkeit(system, displacements)
-            st.session_state['history_Nachgiebigkeit'].append(comp)
 
     node_x, node_z = [], []
     ids, colors, sizes, texts = [], [], [], []
@@ -251,7 +266,6 @@ def plot_interactive_system(system, displacements, def_scale, mode, is_interacti
                 showarrow=True, arrowhead=2, arrowsize=1.5, arrowwidth=3, arrowcolor="orange"
             )
 
-    # Plotly Interaktivitaet setzen
     click_mode = 'event+select' if is_interactive else 'none'
     
     fig.update_layout(
@@ -279,7 +293,6 @@ is_interactive = (st.session_state['iteration'] == 0)
 with col_menu:
     st.write("### Steuerung")
     
-    # Pre-Processing Phase (Setup)
     if st.session_state['iteration'] == 0:
         st.caption("SETUP (PRE-PROCESSING)")
         active_tool = st.radio(
@@ -302,22 +315,21 @@ with col_menu:
             
         st.divider()
         st.caption("SOLVER")
-        if st.button("Optimierung starten", width="stretch", type="primary"):
+        if st.button("Optimierung starten", width = "stretch", type="primary"):
             run_opt(1)
             st.rerun()
             
-    # Post-Processing Phase (Auswertung)
     else:
         st.caption("SOLVER")
         c1, c2 = st.columns(2)
-        if c1.button("+ 1 Schritt", width="stretch"):
+        if c1.button("+ 1 Schritt", width = "stretch"):
             run_opt(1)
             st.rerun()
-        if c2.button("+ 5 Schritte", width="stretch"):
+        if c2.button("+ 5 Schritte", width = "stretch"):
             run_opt(5)
             st.rerun()
             
-        if st.button("Automatisch bis Ziel", width="stretch", type="primary"):
+        if st.button("Automatisch bis Ziel", width = "stretch", type="primary"):
             run_opt(auto_target=True)
             st.rerun()
             
@@ -338,8 +350,7 @@ with col_plot:
         is_interactive
     )
     
-    # Event-Listener für Klicks im Plot
-    event = st.plotly_chart(fig, width="stretch", on_select="rerun")
+    event = st.plotly_chart(fig, width = "stretch", on_select="rerun")
     
     if is_interactive and event and "selection" in event:
         sel = event["selection"]
@@ -350,11 +361,9 @@ with col_plot:
                 sys = st.session_state['system']
                 tool = active_tool.lower()
                 
-                # Vorherige Berechnungen zuruecksetzen, da sich das Setup aendert
                 st.session_state['last_displacements'] = None
                 
                 if "festlager" in tool:
-                    # Maximal ein Festlager erlaubt
                     for pid, p in sys.mass_points.items():
                         if p.is_fixed_x and p.is_fixed_z:
                             p.is_fixed_x = False
@@ -364,15 +373,12 @@ with col_plot:
                     st.rerun()
 
                 elif "loslager" in tool:
-                    # Maximal ein Loslager erlaubt
                     for pid, p in sys.mass_points.items():
                         if p.is_fixed_z and not p.is_fixed_x:
                             p.is_fixed_z = False
-
                     sys.mass_points[clicked_id].is_fixed_x = False
                     sys.mass_points[clicked_id].is_fixed_z = True
                     st.rerun()
-
                     
                 elif "kraft" in tool:
                     sys.external_forces[clicked_id] = np.array([force_x, force_z])
@@ -418,7 +424,7 @@ with col_menu:
                 data=img_bytes,
                 file_name=f"struktur_iter_{st.session_state['iteration']}.png",
                 mime="image/png",
-                width="stretch"
+                width = "stretch" 
             )
         except Exception:
             st.warning("⚠️ 'kaleido' fehlt für Bild-Export.")
