@@ -58,6 +58,10 @@ def has_festlager(system: MechanicalSystem) -> bool:
 def has_loslager(system: MechanicalSystem) -> bool:
     return any(p.is_fixed_z and not p.is_fixed_x for p in system.mass_points.values())
 
+def reset_displacements_for_setup():
+    st.session_state['last_displacements'] = None
+    st.session_state['history_Nachgiebigkeit'] = []
+
 # --- SIDEBAR (Globale Parameter & Projektverwaltung) ---
 st.sidebar.header("Globale Parameter")
 width = st.sidebar.number_input("Breite (Knoten)", min_value=10, value=60)
