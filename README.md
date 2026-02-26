@@ -1,52 +1,226 @@
-# Abschlussprojekt_SoftwareDesign
-Abschlussprojekt für das Vorlesung Softwaredesing
+# Abschlussprojekt_SoftwareDesign  
+Abschlussprojekt für die Vorlesung Softwaredesign  
 
-Projektmitarbeiter:
-  Kofler Michael
-  Guggenberger Philipp
+Projektmitarbeiter:   
+Guggenberger Philipp
+Kofler Michael 
 
-## Bericht
+---
+
+# Bericht
 
 ## 1. Einleitung
-Dieses Projekt realisiert einen iterativen Algorithmus zur Topologieoptimierung. Die Umsetzung erfolgte in Python unter Verwendung von **NumPy** für die Matrixoperationen und **Streamlit** für die interaktive Visualisierung.
+
+Dieses Projekt realisiert einen iterativen Algorithmus zur Topologieoptimierung.  
+Die Umsetzung erfolgte in Python unter Verwendung von NumPy für die Matrixoperationen und Streamlit für die interaktive Visualisierung.
+
+Ziel ist die Entwicklung eines strukturierten, modular aufgebauten Systems zur Simulation und Optimierung eines diskretisierten Tragwerksmodells mit integrierter grafischer Benutzeroberfläche.
+
+---
 
 ## 2. Theoretische Grundlagen
-Die Implementierung orientiert sich an den Methoden der Strukturoptimierung.
 
-### 2.1. Physikalisches Modell (Ground Structure)
-Der Entwurfsraum wird als **Masse-Feder-System** diskretisiert.
-* **Knoten:** Repräsentieren Massenpunkte mit zwei Freiheitsgraden ($u_x, u_z$).
-* **Kanten:** Lineare Federelemente verbinden die Knoten orthogonal und diagonal. Diagonalstäbe werden hinsichtlich ihrer Steifigkeit korrigiert ($k_{diag} = k \cdot \frac{1}{\sqrt{2}}$), um die längere geometrische Ausdehnung zu kompensieren.
+Die Implementierung orientiert sich an klassischen Methoden der Strukturoptimierung.
 
-### 2.2. FEM-Löser
-Das Systemgleichgewicht wird über die **Direkte Steifigkeitsmethode** bestimmt:
-$$K \cdot u = F$$
-Wobei $K$ die globale Steifigkeitsmatrix, $u$ der Verschiebungsvektor und $F$ der Kraftvektor ist. Die Randbedingungen werden durch Zeilen- und Spaltenmanipulation der Matrix $K$ realisiert ("Einbauen der Lager").
+---
 
-### 2.3. Optimierungskriterium
-Ziel ist die Maximierung der Steifigkeit (bzw. Minimierung der Compliance $C$). Als Sensitivitätsmaß für die Materialentfernung dient die elementweise **Dehnungsenergie**:
-$$E_{element} = \frac{1}{2} u_e^T K_e u_e$$
+### 2.1 Physikalisches Modell
+
+Der Entwurfsraum wird als diskretisiertes Masse-Feder-System modelliert.
+
+**Knoten (MassPoints)**  
+Repräsentieren Massenpunkte mit zwei Freiheitsgraden:
+
+- \( u_x \)  
+- \( u_z \)
+
+**Kanten (LinearSpring)**  
+Lineare Federelemente verbinden die Knoten:
+
+- orthogonal (horizontal / vertikal)  
+- diagonal  
+
+Diagonalstäbe werden hinsichtlich ihrer Steifigkeit angepasst:
+
+k_diag = k * 1/2
+
+Diese Korrektur berücksichtigt die größere geometrische Länge der Diagonalelemente.
+
+---
+
+### 2.2 FEM-Löser
+
+Das Systemgleichgewicht wird mittels der Direkten Steifigkeitsmethode bestimmt:
+
+K · u = F
+
+Dabei ist:
+
+- \( K \) – globale Steifigkeitsmatrix  
+- \( u \) – Verschiebungsvektor  
+- \( F \) – globaler Kraftvektor  
+
+Die Randbedingungen (Festlager, Loslager) werden durch gezielte Manipulation von Zeilen und Spalten der Matrix \( K \) implementiert („Einbauen der Lager“).
+
+---
+
+### 2.3 Optimierungskriterium
+
+Ziel ist die Maximierung der Steifigkeit bzw. Minimierung der Compliance \( C \).
+
+Die Compliance wird berechnet als:
+
+C = 1/2 · u^T · F
+
+Als Sensitivitätsmaß dient die elementweise Dehnungsenergie:
+
+E_Element = 1/2 · u_e^T · K_e · u_e
+
 Elemente mit geringer Dehnungsenergie tragen kaum zur Lastabtragung bei und werden iterativ entfernt.
 
-### 2.4. Regularisierung und Stabilität
-Um bekannte numerische Probleme der Topologieoptimierung zu lösen, wurden folgende Erweiterungen implementiert:
-* **Sensitivity Filter:** Ein Radius-basierter Filter glättet die Sensitivitäten (Energiedichte). Dies verhindert numerische Instabilitäten.
-* **Konnektivitäts-Check:** Eine Graphen-Traversierung (Breitensuche / BFS) stellt sicher, dass Kraftpfade zwischen Last und Lager niemals unterbrochen werden, um singuläre Matrizen zu vermeiden.
+---
+
+### 2.4 Regularisierung und Stabilität
+
+Zur Vermeidung numerischer Instabilitäten wurden folgende Erweiterungen implementiert:
+
+**Sensitivity Filter**  
+Ein radiusbasierter Filter glättet die Energiedichten benachbarter Elemente.  
+Dies verhindert Schachbrettmuster und instabile Lokallösungen.
+
+**Konnektivitäts-Check**  
+Eine Graphen-Traversierung (Breitensuche / BFS) stellt sicher, dass Last- und Lagerknoten stets über einen zusammenhängenden Kraftpfad verbunden bleiben.  
+Dadurch werden singuläre Steifigkeitsmatrizen vermieden.
+
+---
 
 ## 3. Struktur des Codes
-Das Projekt folgt dem MVC-Pattern (Model-View-Controller) zur Trennung von Physik und Logik:
 
-* **`structural_components.py`**: Definition der finiten Elemente (`LinearSpring`, `MassPoint`). Implementierung der lokalen Elementsteifigkeitsmatrizen.
-* **`mechanical_system.py`** *(Model)*: Verwaltung der Topologie, Assemblierung der globalen Steifigkeitsmatrix $K$ und Verwaltung der Randbedingungen.
-* **`topology_optimizer.py`** *(Controller)*: Implementierung des Optimierungsalgorithmus, des linearen Gleichungslösers (inkl. Behandlung von Singularitäten) und der Filtertechniken.
-* **`main.py`** *(View)*: Benutzeroberfläche zur Definition von Randbedingungen (Lager, Lasten) und Visualisierung der Ergebnisse.
+Das Projekt folgt dem MVC-Pattern (Model–View–Controller), um Physik, Optimierungslogik und Benutzeroberfläche klar zu trennen.
 
-## 4. Installation und Ausführung
+### structural_components.py
+Definition der finiten Elemente:
+
+- `MassPoint`
+- `LinearSpring`
+
+Implementierung der lokalen Elementsteifigkeitsmatrizen.
+
+---
+
+### mechanical_system.py (Model)
+
+- Verwaltung der Topologie  
+- Assemblierung der globalen Steifigkeitsmatrix \( K \)  
+- Verwaltung von Randbedingungen und Lasten  
+
+---
+
+### topology_optimizer.py (Controller)
+
+- Implementierung des iterativen Optimierungsalgorithmus  
+- Lösung des linearen Gleichungssystems  
+- Behandlung numerischer Singularitäten  
+- Sensitivity-Filter  
+- Konnektivitätsprüfung  
+
+---
+
+### main.py (View)
+
+Interaktive Benutzeroberfläche mit Streamlit:
+
+- Definition von Randbedingungen (Festlager, Loslager)
+- Definition von Lasten
+- Iterative Optimierung
+- Visualisierung der Struktur
+- Darstellung von:
+  - Masseverlauf
+  - Nachgiebigkeitsverlauf
+  - Relativer Verformungs-Heatmap
+  - Fortschrittsanzeige
+  - Finalem Optimierungsreport
+
+Zusätzlich implementiert:
+
+- Projekt-Speichern und -Laden (Pickle)
+- PNG-Export der Struktur (Plotly + Kaleido)
+- Validierung: Genau ein Festlager und ein Loslager erforderlich
+
+---
+
+## 4. Erweiterungen im aktuellen Stand
+
+Im Vergleich zur Basisversion wurden folgende Funktionen ergänzt:
+
+- Speicherung und Verlauf der Nachgiebigkeit
+- Relativer Steifigkeitsvergleich zur Startstruktur
+- Fortschrittsanzeige in Prozent
+- Finaler Report mit:
+  - Materialeinsparung
+  - Nachgiebigkeitsfaktor
+  - Verbleibender Steifigkeit
+- Relative Verformungs-Heatmap basierend auf initialem Maximalwert
+- Konsistente Zurücksetzung der Historien bei Setup-Änderungen
+
+---
+
+## 5. Installation und Ausführung
 
 ### Voraussetzungen
-* Python 3.9+
-* Bibliotheken: `numpy`, `streamlit`, `matplotlib`
+
+- Python 3.9+
+- Bibliotheken:
+  - numpy
+  - streamlit
+  - pandas
+  - plotly
+  - kaleido (optional für PNG-Export)
+
+---
+
+## 6. Erweiterbarkeit auf 3D
+
+Eine Erweiterung des Modells auf drei Dimensionen ist aus mathematischer Sicht grundsätzlich möglich.  
+Die Formulierung der Steifigkeitsmatrix, der Freiheitsgrade sowie der Optimierungskriterien lässt sich direkt auf 3D übertragen.
+
+Allerdings entsteht dabei ein massives Skalierungsproblem:
+
+Beispielhafte Diskretisierung:
+
+60 × 20 × 20 = 24,000 Knoten
+
+In 3D besitzt jeder Knoten drei Freiheitsgrade:
+
+- \( u_x \)
+- \( u_y \)
+- \( u_z \)
+
+Damit ergibt sich:
+
+24,000 × 3 = 72,000 Freiheitsgrade
+
+Die globale Steifigkeitsmatrix \( K \) hat somit die Dimension:
+
+72,000 × 72,000
+
+Das entspricht:
+
+5,184,000,000 ≈ 5.1 Milliarden Matrixeinträge
+
+Die Verarbeitung einer Matrix dieser Größe ist mit einer dichten Darstellung rechnerisch und speichertechnisch äußerst aufwendig.  
+Die Berechnungszeit würde selbst bei moderner Hardware stark ansteigen.
+
+Aus diesem Grund wurde im Rahmen dieses Projekts bewusst eine 2D-Implementierung gewählt.
+
+## 7. KI-Unterstützung
+
+Die Konzeption, Strukturierung und Implementierung des Projekts erfolgten eigenständig.
+KI-Tools wurden unterstützend bei der Analyse komplexerer Probleme, beim Debugging sowie bei kleineren Optimierungen und Detailanpassungen eingesetzt.
+
+Die fachliche Logik, das mathematische Modell und die Gesamtarchitektur stammen aus eigener Entwicklung.
 
 ### Installation
+
 ```bash
 pip install -r requirements.txt
