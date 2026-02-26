@@ -1,6 +1,7 @@
 numpy
+pandas
 streamlit
-matplotlib
-scipy
 plotly
 kaleido
+scipy
+matplotlib

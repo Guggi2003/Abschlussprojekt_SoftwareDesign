@@ -24,6 +24,18 @@ def calculate_Nachgiebigkeit(system, u):
 st.set_page_config(page_title="Topologieoptimierung", layout="wide")
 st.title("Topologieoptimierung")
 
+
+def calculate_Nachgiebigkeit(system: MechanicalSystem, displacements: np.ndarray) -> float:
+    """Berechnet die Nachgiebigkeit C = F^T * u (Arbeit der äußeren Kräfte)."""
+    if displacements is None or len(displacements) == 0:
+        return 0.0
+    compliance = 0.0
+    for pid, force in system.external_forces.items():
+        idx = 2 * pid
+        if idx + 1 < len(displacements):
+            compliance += force[0] * displacements[idx] + force[1] * displacements[idx+1]
+    return compliance
+
 # --- Session State Initialisierung ---
 if 'system' not in st.session_state:
     st.session_state['system'] = None
@@ -153,7 +165,6 @@ def run_opt(steps=1, auto_target=False):
     
     for i in range(max_iters):
         curr_mass = len(st.session_state['system'].mass_points)
-        
         if auto_target and curr_mass <= target_m:
             break
             
@@ -161,9 +172,14 @@ def run_opt(steps=1, auto_target=False):
         opt.run_optimization_step()
         mass_after = len(st.session_state['system'].mass_points)
         
+        # Historie aktualisieren
         st.session_state['history_mass'].append(mass_after)
         comp = calculate_Nachgiebigkeit(st.session_state['system'], opt.current_displacements)
         st.session_state['history_Nachgiebigkeit'].append(comp)
+        
+        if opt.current_displacements is not None:
+            comp = calculate_Nachgiebigkeit(st.session_state['system'], opt.current_displacements)
+            st.session_state['history_Nachgiebigkeit'].append(comp)
         
         iters_done += 1
         
@@ -181,18 +197,12 @@ def run_opt(steps=1, auto_target=False):
     st.session_state['optimizer'] = opt
     st.session_state['iteration'] += iters_done
 
-# --- VISUALISIERUNGS-FUNKTION ---
+# --- VISUALISIERUNG ---
 def plot_interactive_system(system, displacements, def_scale, mode, is_interactive):
     if displacements is None and system is not None:
         temp_opt = TopologyOptimizer(system, target_ratio)
         displacements = temp_opt.solve_linear_system()
         st.session_state['last_displacements'] = displacements
-        
-        if not st.session_state['history_Nachgiebigkeit']:
-            comp = calculate_Nachgiebigkeit(system, displacements)
-            st.session_state['history_Nachgiebigkeit'].append(comp)
-            max_d = np.max(np.abs(displacements))
-            st.session_state['initial_max_disp'] = max_d if max_d > 0 else 1.0
 
     node_x, node_z = [], []
     ids, colors, sizes, texts = [], [], [], []
@@ -341,21 +351,21 @@ with col_menu:
             
         st.divider()
         st.caption("SOLVER")
-        if st.button("Optimierung starten", width="stretch", type="primary"):
+        if st.button("Optimierung starten", width = "stretch", type="primary"):
             run_opt(1)
             st.rerun()
             
     else:
         st.caption("SOLVER")
         c1, c2 = st.columns(2)
-        if c1.button("+ 1 Schritt", width="stretch"):
+        if c1.button("+ 1 Schritt", width = "stretch"):
             run_opt(1)
             st.rerun()
-        if c2.button("+ 5 Schritte", width="stretch"):
+        if c2.button("+ 5 Schritte", width = "stretch"):
             run_opt(5)
             st.rerun()
             
-        if st.button("Automatisch bis Ziel", width="stretch", type="primary"):
+        if st.button("Automatisch bis Ziel", width = "stretch", type="primary"):
             run_opt(auto_target=True)
             st.rerun()
             
@@ -376,7 +386,7 @@ with col_plot:
         is_interactive
     )
     
-    event = st.plotly_chart(fig, width="stretch", on_select="rerun")
+    event = st.plotly_chart(fig, width = "stretch", on_select="rerun")
     
     if is_interactive and event and "selection" in event:
         sel = event["selection"]
@@ -387,9 +397,7 @@ with col_plot:
                 sys = st.session_state['system']
                 tool = active_tool.lower()
                 
-                def reset_displacements_for_setup():
-                    st.session_state['last_displacements'] = None
-                    st.session_state['history_Nachgiebigkeit'] = []
+                st.session_state['last_displacements'] = None
                 
                 if "festlager" in tool:
                     for pid, p in sys.mass_points.items():
@@ -408,10 +416,6 @@ with col_plot:
                     for pid, p in sys.mass_points.items():
                         if p.is_fixed_z and not p.is_fixed_x:
                             p.is_fixed_z = False
-                    # Falls der geklickte Knoten aktuell Festlager ist, entfernen
-                    if sys.mass_points[clicked_id].is_fixed_x and sys.mass_points[clicked_id].is_fixed_z:
-                        sys.mass_points[clicked_id].is_fixed_x = False
-                        sys.mass_points[clicked_id].is_fixed_z = False
                     sys.mass_points[clicked_id].is_fixed_x = False
                     sys.mass_points[clicked_id].is_fixed_z = True
                     reset_displacements_for_setup()
@@ -507,7 +511,7 @@ with col_menu:
                 data=img_bytes,
                 file_name=f"struktur_iter_{st.session_state['iteration']}.png",
                 mime="image/png",
-                width="stretch"
+                width = "stretch" 
             )
         except Exception:
             st.warning("⚠️ 'kaleido' fehlt für Bild-Export.")

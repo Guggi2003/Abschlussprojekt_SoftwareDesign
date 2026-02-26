@@ -74,8 +74,8 @@ class MechanicalSystem:
             # Globale Indizes bestimmen: [ax, az, bx, bz]
             idx = spring.point_a.global_dof_indices + spring.point_b.global_dof_indices
             
-            # In globale Matrix addieren (Meshgrid Slicing für Performance)
-            # Das ist wesentlich schneller als verschachtelte Schleifen
+            # In globale Matrix addieren
+            # schneller als verschachtelte Schleifen
             K_global[np.ix_(idx, idx)] += k_local
             
         return K_global
@@ -90,13 +90,13 @@ class MechanicalSystem:
             if point_id in self.external_forces:
                 del self.external_forces[point_id]
             
-            # Nur Federn behalten, die intakt sind (kein Ende am gelöschten Punkt)
+            # nur Federn behalten, die intakt sind
             self.springs = [
                 s for s in self.springs 
                 if s.point_a.id != point_id and s.point_b.id != point_id
             ]
 
-    # --- Persistenz (Speichern/Laden) ---
+    # Speichern/Laden
     def save_to_file(self, filename: str):
         """Speichert das System binär (Pickle)."""
         with open(filename, 'wb') as f:

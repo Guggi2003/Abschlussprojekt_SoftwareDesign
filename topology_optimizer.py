@@ -4,7 +4,6 @@ from mechanical_system import MechanicalSystem
 class TopologyOptimizer:
     """
     Steuert den Optimierungsprozess.
-    Strategie: 'Bridge Breaker' + Verformungsspeicher.
     """
     def __init__(self, system: MechanicalSystem, target_mass_ratio: float):
         self.system = system
@@ -14,7 +13,7 @@ class TopologyOptimizer:
         self.current_iteration = 0
         self.previous_energies: dict[int, float] = {}
         
-        # NEU: Wir speichern die Verschiebungen für den Plot
+        #Speichern die Verschiebungen für den Plot
         self.current_displacements: np.ndarray = None
 
     def solve_linear_system(self) -> np.ndarray:
@@ -52,14 +51,14 @@ class TopologyOptimizer:
         target_count = int(self.initial_mass * self.target_mass_ratio)
         if len(self.system.mass_points) <= target_count:
             print("Zielmasse erreicht.")
-            # Auch wenn wir nicht löschen, wollen wir für den Plot rechnen
+            # Auch wenn nicht löschen, für Plot rechnen
             u = self.solve_linear_system()
             self.current_displacements = u
             return
 
         # 1. FEM & Speichern
         u = self.solve_linear_system()
-        self.current_displacements = u # <--- HIER SPEICHERN WIR ES
+        self.current_displacements = u
         
         # 2. Wichtigkeit
         importance_map = self._calculate_point_importance(u)
