@@ -509,13 +509,20 @@ with col_menu:
         st.divider()
         st.caption("EXPORT")
         try:
+            # Versuch Bild zu rendern
             img_bytes = fig.to_image(format="png", width=1200, height=600, scale=2)
+            
             st.download_button(
                 label="Bild exportieren (.png)",
                 data=img_bytes,
                 file_name=f"struktur_iter_{st.session_state['iteration']}.png",
                 mime="image/png",
-                width = "stretch" 
+                use_container_width=True 
             )
-        except Exception:
-            st.warning("⚠️ 'kaleido' fehlt für Bild-Export.")
+        except Exception as e:
+            
+            st.error(f"⚠️ Fehler beim Bild-Export: {e}")
+            
+            #Traceback anzeigen für Debugging
+            import traceback
+            st.code(traceback.format_exc(), language="python")
