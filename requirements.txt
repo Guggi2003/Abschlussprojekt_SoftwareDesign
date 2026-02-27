@@ -2,7 +2,7 @@ numpy
 pandas
 streamlit>=1.35.0
 plotly
-kaleido==0.1.0.post1
+kaleido>=1.0.0
 scipy
 matplotlib
 altair>=6.0.0
